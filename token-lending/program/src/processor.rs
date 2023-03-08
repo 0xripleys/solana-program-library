@@ -30,7 +30,7 @@ use solana_program::{
         Sysvar,
     },
 };
-use solend_sdk::state::{RateLimiter, RateLimiterConfig};
+use solend_sdk::state::{AssetType, RateLimiter, RateLimiterConfig};
 use solend_sdk::{switchboard_v2_devnet, switchboard_v2_mainnet};
 use spl_token::state::Mint;
 use std::{cmp::min, result::Result};
@@ -1470,6 +1470,25 @@ fn process_borrow_obligation_liquidity(
         return Err(LendingError::InvalidMarketAuthority.into());
     }
 
+    if borrow_reserve.config.asset_type == AssetType::Isolated {
+        match obligation.borrows.len() {
+            0 => {}
+            1 => {
+                if &obligation.borrows[0].borrow_reserve != borrow_reserve_info.key {
+                    msg!("If borrowing an isolated tier asset, there can't be any other borrows in your obligation");
+                    return Err(LendingError::IsolatedTierAssetViolation.into());
+                }
+            }
+            // it's possible that the obligation already has a borrow from this reserve (consider
+            // case the where we change a reserve asset type from regular to isolated), but in that
+            // case we don't want to let more borrows happen anyways.
+            _ => {
+                msg!("If borrowing an isolated tier asset, there can't be any other borrows in your obligation");
+                return Err(LendingError::IsolatedTierAssetViolation.into());
+            }
+        }
+    }
+
     let remaining_borrow_value = obligation
         .remaining_borrow_value()
         .unwrap_or_else(|_| Decimal::zero());
@@ -2868,6 +2887,13 @@ fn validate_reserve_config(config: ReserveConfig) -> ProgramResult {
     }
     if config.protocol_take_rate > 100 {
         msg!("Protocol take rate must be in range [0, 100]");
+        return Err(LendingError::InvalidConfig.into());
+    }
+
+    if config.asset_type == AssetType::Isolated
+        && !(config.loan_to_value_ratio == 0 && config.liquidation_threshold == 0)
+    {
+        msg!("open/close LTV must be 0 for isolated reserves");
         return Err(LendingError::InvalidConfig.into());
     }
     Ok(())

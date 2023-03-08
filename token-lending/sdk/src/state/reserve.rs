@@ -4,6 +4,8 @@ use crate::{
     math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
 };
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use solana_program::{
     clock::Slot,
     entrypoint::ProgramResult,
@@ -779,6 +781,18 @@ pub struct ReserveConfig {
     /// Added borrow weight in basis points. THIS FIELD SHOULD NEVER BE USED DIRECTLY. Always use
     /// borrow_weight()
     pub added_borrow_weight_bps: u64,
+    /// Asset Type of the reserve (Regular, Isolated)
+    pub asset_type: AssetType,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, FromPrimitive)]
+/// Asset Type of the reserve
+pub enum AssetType {
+    #[default]
+    /// this asset can be used as collateral
+    Regular = 0,
+    /// this asset cannot be used as collateral and can only be borrowed in isolation
+    Isolated = 1,
 }
 
 /// Additional fee information on a reserve
@@ -938,6 +952,7 @@ impl Pack for Reserve {
             rate_limiter,
             config_added_borrow_weight_bps,
             liquidity_smoothed_market_price,
+            config_asset_type,
             _padding,
         ) = mut_array_refs![
             output,
@@ -976,7 +991,8 @@ impl Pack for Reserve {
             RATE_LIMITER_LEN,
             8,
             16,
-            150
+            1,
+            149
         ];
 
         // reserve
@@ -1032,6 +1048,7 @@ impl Pack for Reserve {
         config_fee_receiver.copy_from_slice(self.config.fee_receiver.as_ref());
         *config_protocol_liquidation_fee = self.config.protocol_liquidation_fee.to_le_bytes();
         *config_protocol_take_rate = self.config.protocol_take_rate.to_le_bytes();
+        *config_asset_type = (self.config.asset_type as u8).to_le_bytes();
 
         self.rate_limiter.pack_into_slice(rate_limiter);
 
@@ -1078,6 +1095,7 @@ impl Pack for Reserve {
             rate_limiter,
             config_added_borrow_weight_bps,
             liquidity_smoothed_market_price,
+            config_asset_type,
             _padding,
         ) = array_refs![
             input,
@@ -1116,7 +1134,8 @@ impl Pack for Reserve {
             RATE_LIMITER_LEN,
             8,
             16,
-            150
+            1,
+            149
         ];
 
         let version = u8::from_le_bytes(*version);
@@ -1173,6 +1192,7 @@ impl Pack for Reserve {
                 protocol_liquidation_fee: u8::from_le_bytes(*config_protocol_liquidation_fee),
                 protocol_take_rate: u8::from_le_bytes(*config_protocol_take_rate),
                 added_borrow_weight_bps: u64::from_le_bytes(*config_added_borrow_weight_bps),
+                asset_type: AssetType::from_u8(config_asset_type[0]).unwrap(),
             },
             rate_limiter: RateLimiter::unpack_from_slice(rate_limiter)?,
         })

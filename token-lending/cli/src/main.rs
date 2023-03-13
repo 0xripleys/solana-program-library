@@ -7,8 +7,8 @@ use solend_sdk::{
         liquidate_obligation_and_redeem_reserve_collateral, redeem_reserve_collateral,
         refresh_obligation, refresh_reserve,
     },
-    state::Obligation,
     state::AssetType,
+    state::Obligation,
 };
 
 mod lending_state;

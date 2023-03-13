@@ -5,6 +5,7 @@ use crate::{
     error::LendingError,
     state::{RateLimiterConfig, ReserveConfig, ReserveFees},
 };
+use num_traits::FromPrimitive;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     msg,
@@ -12,7 +13,6 @@ use solana_program::{
     pubkey::{Pubkey, PUBKEY_BYTES},
     sysvar,
 };
-use num_traits::FromPrimitive;
 use std::{convert::TryInto, mem::size_of};
 
 /// Instructions supported by the lending program.

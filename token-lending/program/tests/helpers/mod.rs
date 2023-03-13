@@ -20,7 +20,7 @@ use solend_program::{
         init_obligation, liquidate_obligation, refresh_obligation, refresh_reserve,
         withdraw_obligation_collateral_and_redeem_reserve_collateral,
     },
-    state::{Obligation, ReserveConfig, ReserveFees, AssetType},
+    state::{AssetType, Obligation, ReserveConfig, ReserveFees},
 };
 
 use spl_token::state::Mint;
@@ -69,6 +69,10 @@ pub mod usdt_mint {
 pub mod wsol_mint {
     // fake mint, not the real wsol bc i can't mint wsol programmatically
     solana_program::declare_id!("So1m5eppzgokXLBt9Cg8KCMPWhHfTzVaGh26Y415MRG");
+}
+
+pub mod bonk_mint {
+    solana_program::declare_id!("bonk99WdRCGrh56xQaeQuRMpMHgiNZEfVoZ53DJAoHS");
 }
 
 trait AddPacked {

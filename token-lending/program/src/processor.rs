@@ -4,12 +4,12 @@ use crate::{
     self as solend_program,
     error::LendingError,
     instruction::LendingInstruction,
-    math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub, WAD},
+    math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
     oracles::get_pyth_price,
     state::{
-        CalculateBorrowResult, CalculateLiquidationResult, CalculateRepayResult,
-        InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket,
-        NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve,
+        validate_reserve_config, CalculateBorrowResult, CalculateLiquidationResult,
+        CalculateRepayResult, InitLendingMarketParams, InitObligationParams, InitReserveParams,
+        LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve,
         ReserveCollateral, ReserveConfig, ReserveLiquidity,
     },
 };
@@ -1477,12 +1477,11 @@ fn process_borrow_obligation_liquidity(
     }
 
     match borrow_reserve.config.asset_type {
-        AssetType::Isolated =>
-        match obligation.borrows.len() {
+        AssetType::Isolated => match obligation.borrows.len() {
             0 => {}
             1 => {
                 if &obligation.borrows[0].borrow_reserve != borrow_reserve_info.key {
-                    msg!("If borrowing an isolated tier asset, there can't be any other borrows in your obligation");
+                    msg!("If you want to borrow an isolated tier asset, there can't be any other borrows in your obligation");
                     return Err(LendingError::IsolatedTierAssetViolation.into());
                 }
             }
@@ -1490,13 +1489,15 @@ fn process_borrow_obligation_liquidity(
             // case the where we change a reserve asset type from regular to isolated), but in that
             // case we don't want to let more borrows happen anyways.
             _ => {
-                msg!("If borrowing an isolated tier asset, there can't be any other borrows in your obligation");
+                msg!("If you want to borrow an isolated tier asset, there can't be any other borrows in your obligation");
                 return Err(LendingError::IsolatedTierAssetViolation.into());
             }
-        }
+        },
         AssetType::Regular => {
             if obligation.borrowing_isolated_asset {
-                msg!("Cannot borrow a regular tier asset if you have an isolated tier asset borrow");
+                msg!(
+                    "Cannot borrow a regular tier asset if you have an isolated tier asset borrow"
+                );
                 return Err(LendingError::IsolatedTierAssetViolation.into());
             }
         }
@@ -2855,61 +2856,6 @@ fn spl_token_burn(params: TokenBurnParams<'_, '_>) -> ProgramResult {
         authority_signer_seeds,
     );
     result.map_err(|_| LendingError::TokenBurnFailed.into())
-}
-
-/// validates reserve configs
-#[inline(always)]
-fn validate_reserve_config(config: ReserveConfig) -> ProgramResult {
-    if config.optimal_utilization_rate > 100 {
-        msg!("Optimal utilization rate must be in range [0, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.loan_to_value_ratio >= 100 {
-        msg!("Loan to value ratio must be in range [0, 100)");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.liquidation_bonus > 100 {
-        msg!("Liquidation bonus must be in range [0, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.liquidation_threshold < config.loan_to_value_ratio
-        || config.liquidation_threshold > 100
-    {
-        msg!("Liquidation threshold must be in range [LTV, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.optimal_borrow_rate < config.min_borrow_rate {
-        msg!("Optimal borrow rate must be >= min borrow rate");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.optimal_borrow_rate > config.max_borrow_rate {
-        msg!("Optimal borrow rate must be <= max borrow rate");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.fees.borrow_fee_wad >= WAD {
-        msg!("Borrow fee must be in range [0, 1_000_000_000_000_000_000)");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.fees.host_fee_percentage > 100 {
-        msg!("Host fee percentage must be in range [0, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.protocol_liquidation_fee > 100 {
-        msg!("Protocol liquidation fee must be in range [0, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    if config.protocol_take_rate > 100 {
-        msg!("Protocol take rate must be in range [0, 100]");
-        return Err(LendingError::InvalidConfig.into());
-    }
-
-    if config.asset_type == AssetType::Isolated
-        && !(config.loan_to_value_ratio == 0 && config.liquidation_threshold == 0)
-    {
-        msg!("open/close LTV must be 0 for isolated reserves");
-        return Err(LendingError::InvalidConfig.into());
-    }
-    Ok(())
 }
 
 /// validates pyth AccountInfos
